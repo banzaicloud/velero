@@ -73,6 +73,7 @@ type kubernetesBackupper struct {
 	resticBackupperFactory restic.BackupperFactory
 	resticTimeout          time.Duration
 	defaultVolumesToRestic bool
+	backupCollectorTimeoutSeconds int64
 }
 
 type resolvedAction struct {
@@ -106,6 +107,7 @@ func NewKubernetesBackupper(
 	resticBackupperFactory restic.BackupperFactory,
 	resticTimeout time.Duration,
 	defaultVolumesToRestic bool,
+		backupCollectorTimeoutSeconds int64,
 ) (Backupper, error) {
 	return &kubernetesBackupper{
 		backupClient:           backupClient,
@@ -115,6 +117,7 @@ func NewKubernetesBackupper(
 		resticBackupperFactory: resticBackupperFactory,
 		resticTimeout:          resticTimeout,
 		defaultVolumesToRestic: defaultVolumesToRestic,
+		backupCollectorTimeoutSeconds: backupCollectorTimeoutSeconds,
 	}, nil
 }
 
@@ -272,6 +275,7 @@ func (kb *kubernetesBackupper) Backup(log logrus.FieldLogger, backupRequest *Req
 		dynamicFactory:        kb.dynamicFactory,
 		cohabitatingResources: cohabitatingResources(),
 		dir:                   tempDir,
+		backupCollectorTimeoutSeconds: kb.backupCollectorTimeoutSeconds,
 	}
 
 	items := collector.getAllItems()

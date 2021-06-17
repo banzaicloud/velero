@@ -17,23 +17,22 @@ limitations under the License.
 package backup
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"sort"
-	"strings"
+		"encoding/json"
+		"fmt"
+		"github.com/pkg/errors"
+		"github.com/sirupsen/logrus"
+		"io/ioutil"
+		metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+		"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+		"k8s.io/apimachinery/pkg/labels"
+		"k8s.io/apimachinery/pkg/runtime/schema"
+		"sort"
+		"strings"
 
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/vmware-tanzu/velero/pkg/client"
-	"github.com/vmware-tanzu/velero/pkg/discovery"
-	"github.com/vmware-tanzu/velero/pkg/kuberesource"
-	"github.com/vmware-tanzu/velero/pkg/util/collections"
+		"github.com/vmware-tanzu/velero/pkg/client"
+		"github.com/vmware-tanzu/velero/pkg/discovery"
+		"github.com/vmware-tanzu/velero/pkg/kuberesource"
+		"github.com/vmware-tanzu/velero/pkg/util/collections"
 )
 
 // itemCollector collects items from the Kubernetes API according to
@@ -45,6 +44,7 @@ type itemCollector struct {
 	dynamicFactory        client.DynamicFactory
 	cohabitatingResources map[string]*cohabitatingResource
 	dir                   string
+	backupCollectorTimeoutSeconds int64
 }
 
 type kubernetesResource struct {
@@ -289,7 +289,10 @@ func (r *itemCollector) getResourceItems(log logrus.FieldLogger, gv schema.Group
 		}
 
 		log.Info("Listing items")
-		unstructuredList, err := resourceClient.List(metav1.ListOptions{LabelSelector: labelSelector})
+		unstructuredList, err := resourceClient.List(metav1.ListOptions{
+				LabelSelector: labelSelector,
+				TimeoutSeconds: &r.backupCollectorTimeoutSeconds,
+		})
 		if err != nil {
 			log.WithError(errors.WithStack(err)).Error("Error listing items")
 			continue

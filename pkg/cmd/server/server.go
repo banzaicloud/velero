@@ -102,6 +102,9 @@ const (
 	// defaultCredentialsDirectory is the path on disk where credential
 	// files will be written to
 	defaultCredentialsDirectory = "/tmp/credentials"
+
+	defaultKubeClientTimeout = 32 * time.Second
+	defaultBackupCollectorTimeoutSeconds = 300
 )
 
 type serverConfig struct {
@@ -119,6 +122,8 @@ type serverConfig struct {
 	formatFlag                                                              *logging.FormatFlag
 	defaultResticMaintenanceFrequency                                       time.Duration
 	defaultVolumesToRestic                                                  bool
+	kubeClientTimeout                                                       time.Duration
+	backupCollectorTimeoutSeconds																						int64
 }
 
 type controllerRunInfo struct {
@@ -147,6 +152,8 @@ func NewCommand(f client.Factory) *cobra.Command {
 			formatFlag:                        logging.NewFormatFlag(),
 			defaultResticMaintenanceFrequency: restic.DefaultMaintenanceFrequency,
 			defaultVolumesToRestic:            restic.DefaultVolumesToRestic,
+			kubeClientTimeout:                 defaultKubeClientTimeout,
+			backupCollectorTimeoutSeconds:     defaultBackupCollectorTimeoutSeconds,
 		}
 	)
 
@@ -210,8 +217,10 @@ func NewCommand(f client.Factory) *cobra.Command {
 	command.Flags().DurationVar(&config.defaultBackupTTL, "default-backup-ttl", config.defaultBackupTTL, "How long to wait by default before backups can be garbage collected.")
 	command.Flags().DurationVar(&config.defaultResticMaintenanceFrequency, "default-restic-prune-frequency", config.defaultResticMaintenanceFrequency, "How often 'restic prune' is run for restic repositories by default.")
 	command.Flags().BoolVar(&config.defaultVolumesToRestic, "default-volumes-to-restic", config.defaultVolumesToRestic, "Backup all volumes with restic by default.")
+	command.Flags().DurationVar(&config.kubeClientTimeout, "kube-client-timeout", config.kubeClientTimeout, "How much time to wait for K8s API server responses")
+	command.Flags().Int64Var(&config.backupCollectorTimeoutSeconds, "backup-collector-timeout-seconds", config.backupCollectorTimeoutSeconds, "How much time to wait for listing backup items")
 
-	return command
+		return command
 }
 
 type server struct {
@@ -248,6 +257,15 @@ func newServer(f client.Factory, config serverConfig, logger *logrus.Logger) (*s
 		return nil, errors.New("client-burst must be positive")
 	}
 	f.SetClientBurst(config.clientBurst)
+
+	if config.kubeClientTimeout <= 0 {
+			return nil, errors.New("kube-client-timeout must be positive")
+	}
+	f.SetKubeClientTimeout(config.kubeClientTimeout)
+
+	if config.backupCollectorTimeoutSeconds <= 0 {
+			return nil, errors.New("backup-collector-timeout-seconds must be positive")
+	}
 
 	kubeClient, err := f.KubeClient()
 	if err != nil {
@@ -610,6 +628,7 @@ func (s *server) runControllers(defaultVolumeSnapshotLocations map[string]string
 			s.resticManager,
 			s.config.podVolumeOperationTimeout,
 			s.config.defaultVolumesToRestic,
+			s.config.backupCollectorTimeoutSeconds,
 		)
 		cmd.CheckError(err)
 

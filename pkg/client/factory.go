@@ -18,8 +18,9 @@ package client
 
 import (
 	"os"
+		"time"
 
-	kbclient "sigs.k8s.io/controller-runtime/pkg/client"
+		kbclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
@@ -56,6 +57,8 @@ type Factory interface {
 	SetClientQPS(float32)
 	// SetClientBurst sets the Burst for a client.
 	SetClientBurst(int)
+  // SetKubeClientTimeout sets timeout for K8s client connections.
+  SetKubeClientTimeout(duration time.Duration)
 	// ClientConfig returns a rest.Config struct used for client-go clients.
 	ClientConfig() (*rest.Config, error)
 	// Namespace returns the namespace which the Factory will create clients for.
@@ -70,6 +73,7 @@ type factory struct {
 	namespace   string
 	clientQPS   float32
 	clientBurst int
+	kubeClientTimeout time.Duration
 }
 
 // NewFactory returns a Factory.
@@ -102,7 +106,7 @@ func (f *factory) BindFlags(flags *pflag.FlagSet) {
 }
 
 func (f *factory) ClientConfig() (*rest.Config, error) {
-	return Config(f.kubeconfig, f.kubecontext, f.baseName, f.clientQPS, f.clientBurst)
+	return Config(f.kubeconfig, f.kubecontext, f.baseName, f.clientQPS, f.clientBurst, f.kubeClientTimeout)
 }
 
 func (f *factory) Client() (clientset.Interface, error) {
@@ -172,6 +176,10 @@ func (f *factory) SetClientQPS(qps float32) {
 
 func (f *factory) SetClientBurst(burst int) {
 	f.clientBurst = burst
+}
+
+func (f *factory) SetKubeClientTimeout(kubeClientTimeout time.Duration) {
+		f.kubeClientTimeout = kubeClientTimeout
 }
 
 func (f *factory) Namespace() string {
